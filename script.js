@@ -9,7 +9,6 @@ function generateUUID() {
     });
 }
 
-// ご要望に合わせた初期設定
 let tracksData = [
     { id: 1, guid: generateUUID(), type: 'input', name: 'Input', color: 'color-orange', activateType: 'key', activateValues: [], emulateType: 'key', emulateValues: ['UpArrow'], 
       inputType: 'finite', clips: [{ start: 0, duration: 5.0 }], events: [] },
@@ -20,19 +19,19 @@ let tracksData = [
 
     { id: 3, guid: generateUUID(), type: 'length_detector', name: 'Up', color: 'color-green', 
       activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['up'], 
-      targetTrackId: 2, minAngle: 0, maxAngle: 45, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
+      targetTrackId: 2, minAngle: 0, maxAngle: 45, holdToActivate: true, isToggle: true, monitorPeriods: [], activePeriods: [] },
 
     { id: 4, guid: generateUUID(), type: 'length_detector', name: 'Go', color: 'color-green', 
       activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['go'], 
-      targetTrackId: 2, minAngle: 45, maxAngle: 90, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
+      targetTrackId: 2, minAngle: 45, maxAngle: 90, holdToActivate: true, isToggle: true, monitorPeriods: [], activePeriods: [] },
 
     { id: 5, guid: generateUUID(), type: 'length_detector', name: 'Down', color: 'color-green', 
       activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['down'], 
-      targetTrackId: 2, minAngle: 180, maxAngle: 225, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
+      targetTrackId: 2, minAngle: 180, maxAngle: 225, holdToActivate: true, isToggle: true, monitorPeriods: [], activePeriods: [] },
 
     { id: 6, guid: generateUUID(), type: 'length_detector', name: 'Back', color: 'color-green', 
       activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['back'], 
-      targetTrackId: 2, minAngle: 225, maxAngle: 270, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] }
+      targetTrackId: 2, minAngle: 225, maxAngle: 270, holdToActivate: true, isToggle: true, monitorPeriods: [], activePeriods: [] }
 ];
 
 let dragState = { isDragging: false, mode: null, trackId: null, clipIndex: null, startX: 0, startWait: 0, startDuration: 0, evStart: 0, evEnd: 0 };
@@ -523,10 +522,16 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', () => { if (!dragState.isDragging) return; dragState.isDragging = false; document.body.style.cursor = ''; });
+
 document.getElementById('prop-hold').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-stop').checked = false; });
 document.getElementById('prop-stop').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-hold').checked = false; });
-document.getElementById('prop-angle-hold').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-angle-toggle').checked = false; });
-document.getElementById('prop-angle-toggle').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-angle-hold').checked = false; });
+
+document.getElementById('prop-angle-hold').addEventListener('change', (e) => { 
+    if (e.target.checked) document.getElementById('prop-angle-toggle').checked = true; 
+});
+document.getElementById('prop-angle-toggle').addEventListener('change', (e) => { 
+    if (!e.target.checked) document.getElementById('prop-angle-hold').checked = false; 
+});
 
 function openModal(trackId, target) {
     editingTrackId = trackId; editingTarget = target;
@@ -603,7 +608,7 @@ function renderIOList() {
     const listEl = document.getElementById('io-list'); listEl.innerHTML = '';
     tempValues.forEach((val, index) => {
         const row = document.createElement('div'); row.className = 'input-row';
-        const input = document.createElement('input'); input.type = 'text'; input.value = val; input.placeholder = "例: UpArrow, C, 変数名"; input.oninput = (e) => { tempValues[index] = e.target.value; };
+        const input = document.createElement('input'); input.type = 'text'; input.value = val; input.placeholder = "例: 1, up, C, 変数名"; input.oninput = (e) => { tempValues[index] = e.target.value; };
         const delBtn = document.createElement('button'); delBtn.className = 'danger-btn'; delBtn.innerText = '×'; delBtn.onclick = () => removeIOField(index);
         row.appendChild(input); row.appendChild(delBtn); listEl.appendChild(row);
     });
@@ -668,6 +673,22 @@ function duplicateTrack() {
     tracksData.splice(trackIndex + 1, 0, newTrack);
     closeModal(); simulate(); renderTracks();
 }
+
+// 自動変換機能：UI上で入力された文字を、エクスポート時にBesiege（Unity）のキーコードに変換する
+const toUnityKey = (key) => {
+    const map = {
+        '0': 'Alpha0', '1': 'Alpha1', '2': 'Alpha2', '3': 'Alpha3', '4': 'Alpha4',
+        '5': 'Alpha5', '6': 'Alpha6', '7': 'Alpha7', '8': 'Alpha8', '9': 'Alpha9',
+        'up': 'UpArrow', 'down': 'DownArrow', 'left': 'LeftArrow', 'right': 'RightArrow',
+        'space': 'Space', 'enter': 'Return', 'return': 'Return',
+        'ctrl': 'LeftControl', 'alt': 'LeftAlt', 'shift': 'LeftShift'
+    };
+    const lower = key.toLowerCase();
+    if (map[lower]) return map[lower];
+    // 単一のアルファベット(a-z)なら大文字に変換
+    if (key.length === 1 && key.match(/[a-z]/i)) return key.toUpperCase();
+    return key;
+};
 
 function exportData() {
     let xml = '<?xml version="1.0" encoding="utf-8"?>\n';
@@ -841,7 +862,8 @@ function exportData() {
                 xml += `          <String>Use=True</String>\n`;
             } else {
                 vals.forEach(v => {
-                    xml += `          <String>${v}</String>\n`;
+                    // 入力キーをUnityのKeyCodeに変換してエクスポート
+                    xml += `          <String>${toUnityKey(v)}</String>\n`;
                 });
             }
             xml += `        </StringArray>\n`;
@@ -887,7 +909,8 @@ function exportData() {
         else if (track.type === 'angle') {
             buildKeyData('bmt-activate', track.activateType, track.activateValues);
             buildKeyData('bmt-emulate', track.emulateType, track.emulateValues);
-            xml += `        <Boolean key="bmt-non-automatic">${track.isToggle ? 'True' : 'False'}</Boolean>\n`;
+            let isNonAuto = track.isToggle || track.holdToActivate;
+            xml += `        <Boolean key="bmt-non-automatic">${isNonAuto ? 'True' : 'False'}</Boolean>\n`;
             xml += `        <Boolean key="bmt-hold-to-activate">${track.holdToActivate ? 'True' : 'False'}</Boolean>\n`;
             xml += `        <Boolean key="bmt-reverse">False</Boolean>\n`;
             xml += `        <Integer key="bmt-alignment">0</Integer>\n`;
@@ -900,8 +923,11 @@ function exportData() {
         else if (track.type === 'length_detector') {
             buildKeyData('bmt-activate', track.activateType, track.activateValues);
             buildKeyData('bmt-emulate', track.emulateType, track.emulateValues);
-            xml += `        <Boolean key="bmt-non-automatic">${track.isToggle ? 'True' : 'False'}</Boolean>\n`;
+            
+            let isNonAuto = track.isToggle || track.holdToActivate;
+            xml += `        <Boolean key="bmt-non-automatic">${isNonAuto ? 'True' : 'False'}</Boolean>\n`;
             xml += `        <Boolean key="bmt-hold-to-activate">${track.holdToActivate ? 'True' : 'False'}</Boolean>\n`;
+            
             xml += `        <Boolean key="bmt-reverse">False</Boolean>\n`;
             xml += `        <Boolean key="bmt-hide">False</Boolean>\n`;
             
@@ -934,8 +960,7 @@ function exportData() {
     const blob = new Blob([xml], {type: 'application/xml'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-
-    a.href = url; // 必須！
+    a.href = url;
 
     const now = new Date();
     const YY = String(now.getFullYear()).slice(-2);
