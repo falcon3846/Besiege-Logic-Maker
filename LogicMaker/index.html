@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Besiege Logic Timeline</title>
+    <style>
+        /* レイアウトが絶対に崩れない完全版CSS */
+        body { font-family: "Meiryo", "Segoe UI", sans-serif; background: #1e1e1e; color: #eee; margin: 0; padding: 0; }
+        #toolbar { display: flex; gap: 20px; padding: 10px 20px; background: #252526; border-bottom: 1px solid #333; align-items: center; flex-wrap: wrap; }
+        .toolbar-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        input[type="number"], input[type="text"], select { background: #333; color: #fff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; }
+        button { cursor: pointer; padding: 6px 12px; border: none; border-radius: 4px; font-weight: bold; color: #fff; transition: background 0.2s; }
+        .primary-btn { background: #007acc; } .primary-btn:hover { background: #005f9e; }
+        .secondary-btn { background: #555; } .danger-btn { background: #d32f2f; }
+
+        /* タイムラインのコンテナ */
+        #timeline-container { display: flex; flex-direction: column; overflow: auto; height: calc(100vh - 55px); }
+        
+        /* 行の幅をコンテンツに合わせる（背景色の途切れ防止） */
+        #timeline-header { display: flex; background: #2d2d30; position: sticky; top: 0; z-index: 15; height: 35px; align-items: center; border-bottom: 1px solid #444; font-size: 13px; font-weight: bold; width: max-content; min-width: 100%; }
+        .track { display: flex; border-bottom: 1px solid #333; height: 45px; background: #1e1e1e; align-items: center; font-size: 13px; width: max-content; min-width: 100%; }
+        
+        /* 左側の列（横スクロールしても固定追従させる） */
+        /* 【修正】z-indexを10に上げ、背後のつまみが透けないようにしました */
+        .track-header { display: flex; width: 640px; flex-shrink: 0; background: #252526; height: 100%; align-items: center; position: sticky; left: 0; z-index: 10; border-right: 1px solid #444; box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
+        #timeline-header .track-header { background: #2d2d30; z-index: 20; }
+        
+        .col-num { width: 50px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
+        .col-type { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
+        .col-tag { width: 140px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
+        .col-set { width: 50px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; cursor: pointer; }
+        .col-in { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
+        .col-ref { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
+        .col-out { width: 100px; text-align: center; flex-shrink: 0; }
+        
+        /* 右側のタイムライン領域 */
+        .col-timeline-header { position: relative; flex-grow: 1; height: 100%; min-width: 800px; }
+        .track-content { position: relative; flex-grow: 1; height: 100%; background: #1e1e1e; min-width: 800px; }
+        
+        #ruler { position: relative; height: 100%; }
+        .tick { position: absolute; bottom: 0; border-left: 1px solid #555; height: 100%; pointer-events: none; }
+        .tick-label { position: absolute; top: 4px; left: 4px; font-size: 11px; color: #999; }
+        
+        .clip-wait { position: absolute; height: 4px; top: calc(50% - 2px); background: #777; border-radius: 2px; }
+        
+        .clip-action { position: absolute; height: 60%; top: 20%; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; overflow: hidden; text-shadow: 1px 1px 1px rgba(0,0,0,0.5); font-size: 12px; }
+        .clip-monitor { position: absolute; height: 10%; top: 45%; border-bottom: 2px dashed #fbc02d; background: transparent; pointer-events: none; }
+        
+        .clip-action-sensor { position: absolute; height: 60%; top: 20%; border-radius: 4px; display: flex; align-items: center; overflow: hidden; }
+        .clip-action-sensor.color-yellow { background: repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px), #d4a017; border: 1px solid #b28913; }
+        .clip-action-sensor.color-green { background: repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px), #388e3c; border: 1px solid #1b5e20; }
+        
+        .color-orange { background: #e67e22; border: 1px solid #d35400; }
+        .color-blue { background: #1976d2; border: 1px solid #0d47a1; }
+        .color-pink { color: #e91e63; }
+        .color-purple { color: #c778dd; }
+        .color-yellow { color: #fbc02d; }
+        .color-green { color: #388e3c; }
+        
+        .handle { position: absolute; width: 8px; height: 100%; cursor: ew-resize; z-index: 5; background: rgba(255,255,255,0.1); }
+        .handle-left { left: 0; } .handle-right { right: 0; }
+        .drag-handle { cursor: grab; padding-right: 8px; color: #888; font-size: 16px; }
+        .dummy-track { opacity: 0.5; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content { background: #252526; padding: 25px; border-radius: 8px; min-width: 380px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-field { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .modal-field label { cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 14px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #444; padding-top: 15px; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- ヘッダーツールバー -->
+    <div id="toolbar">
+        <div class="toolbar-group">
+            <label>最大時間:</label>
+            <input type="number" id="max-time-input" value="10" min="1" max="60" style="width: 50px;" onchange="updateSettings()"> s
+        </div>
+        <div class="toolbar-group">
+            <label>ズーム:</label>
+            <input type="range" id="zoom-slider" min="30" max="300" value="100" oninput="updateSettings()">
+        </div>
+        <div class="toolbar-group">
+            <label>目盛ステップ:</label>
+            <select id="tick-step" onchange="updateSettings()">
+                <option value="0.1">0.1s</option>
+                <option value="0.5" selected>0.5s</option>
+                <option value="1.0">1.0s</option>
+            </select>
+        </div>
+        <div class="toolbar-group">
+            <button class="primary-btn" onclick="exportData()" style="padding: 8px 16px;">BSGファイルをエクスポート</button>
+        </div>
+        <div class="toolbar-group" style="margin-left: 20px;">
+            <label>トラック追加:</label>
+            <button class="primary-btn" onclick="addTrack('timer')">+ Timer</button>
+            <button class="primary-btn" onclick="addTrack('input')">+ Input</button>
+            <button class="primary-btn" onclick="addTrack('wheel')">+ Wheel</button>
+            <button class="primary-btn" onclick="addTrack('angle')">+ Sensor</button>
+        </div>
+    </div>
+
+    <!-- タイムライン全体コンテナ -->
+    <div id="timeline-container">
+        <!-- カラムヘッダー -->
+        <div id="timeline-header">
+            <!-- 左側の固定パネル部分 -->
+            <div class="track-header">
+                <div class="col-num">No.</div>
+                <div class="col-type">種類</div>
+                <div class="col-tag">タグ</div>
+                <div class="col-set">設定</div>
+                <div class="col-in">入力・有効</div>
+                <div class="col-ref">参照・逆転</div>
+                <div class="col-out">出力</div>
+            </div>
+            <!-- 右側のタイムライン部分 -->
+            <div class="col-timeline-header">
+                <div id="ruler"></div>
+            </div>
+        </div>
+
+        <!-- トラック行リスト -->
+        <div id="tracks-container"></div>
+    </div>
+
+    <!-- プロパティ / IO設定モーダル -->
+    <div id="property-modal" class="modal-overlay" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3 id="modal-title" style="margin-top:0; border-bottom:1px solid #444; padding-bottom:10px;">詳細設定</h3>
+            
+            <!-- プロパティ設定セクション -->
+            <div id="property-section" style="display:none;">
+                <div id="timer-properties" style="display:none;">
+                    <div class="modal-field">
+                        <label>待機時間 (Wait):</label>
+                        <input type="number" id="prop-wait" step="0.1" min="0" style="width:100px;"> s
+                    </div>
+                    <div class="modal-field">
+                        <label>持続時間 (Duration):</label>
+                        <input type="number" id="prop-duration" step="0.1" min="0.05" style="width:100px;"> s
+                    </div>
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-hold"> ホールド起動 (Hold to Activate)</label>
+                    </div>
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-stop"> 途中で停止可能 (Can Stop)</label>
+                    </div>
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-loop"> ループ (Loop)</label>
+                    </div>
+                </div>
+
+                <div id="input-properties" style="display:none;">
+                    <div class="modal-field">
+                        <label><input type="radio" name="input-type" value="finite"> 有限クリップ</label>
+                        <label><input type="radio" name="input-type" value="infinite"> 常時ON (無限)</label>
+                    </div>
+                </div>
+
+                <div id="rotation-properties" style="display:none;">
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-toggle"> トグルモード</label>
+                    </div>
+                    <div class="modal-field">
+                        <label>1回転の周期 (秒):</label>
+                        <input type="number" id="prop-period" step="0.1" min="0.1" style="width:100px;"> s
+                    </div>
+                </div>
+
+                <div id="angle-properties" style="display:none;">
+                    <div class="modal-field">
+                        <label>対象の回転ブロック:</label>
+                        <select id="prop-target-track" style="width:140px;"></select>
+                    </div>
+                    <div class="modal-field">
+                        <label>最小角度 (°):</label>
+                        <input type="number" id="prop-angle-min" style="width:80px;">
+                    </div>
+                    <div class="modal-field">
+                        <label>最大角度 (°):</label>
+                        <input type="number" id="prop-angle-max" style="width:80px;">
+                    </div>
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-angle-hold"> ホールド起動</label>
+                    </div>
+                    <div class="modal-field">
+                        <label><input type="checkbox" id="prop-angle-toggle"> トグルモード</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- IO設定セクション -->
+            <div id="io-section" style="display:none;">
+                <div class="modal-field">
+                    <label><input type="radio" name="io-type" value="key"> キー入力 (Key)</label>
+                    <label><input type="radio" name="io-type" value="var"> 変数名 (Message)</label>
+                </div>
+                <div id="io-list"></div>
+                <button class="secondary-btn" id="add-io-btn" onclick="addIOField()">+ 入力値を追加 (最大5つ)</button>
+            </div>
+
+            <div class="modal-actions">
+                <button class="danger-btn" onclick="deleteTrack()">トラックを削除</button>
+                <button class="secondary-btn" onclick="duplicateTrack()">トラックを複製</button>
+                <button class="primary-btn" onclick="saveModal()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

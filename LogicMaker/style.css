@@ -1,0 +1,58 @@
+:root { --bg-color: #1e1e1e; --panel-bg: #2d2d2d; --border-color: #444; --text-color: #eee; --ruler-bg: #252525; --track-bg: #1a1a1a; --pps: 100px; }
+body { margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.toolbar { padding: 10px 20px; background-color: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; gap: 10px; }
+button { background-color: #007acc; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+button:hover { background-color: #005999; }
+button.export-btn { background-color: #2ea043; }
+button.export-btn:hover { background-color: #237a32; }
+button.danger-btn { background-color: #d32f2f; padding: 4px 8px;}
+button.danger-btn:hover { background-color: #b71c1c; }
+button.small-btn { padding: 4px 8px; font-size: 12px; }
+.timeline-container { display: flex; flex-direction: column; flex-grow: 1; overflow-y: auto; overflow-x: auto; }
+.ruler-container { display: flex; background-color: var(--ruler-bg); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 30; width: max-content; min-width: 100%; }
+
+.track-headers-placeholder { width: 490px; min-width: 490px; display: flex; background-color: var(--panel-bg); border-right: 1px solid var(--border-color); position: sticky; left: 0; z-index: 40; }
+.header-col { padding: 5px; border-right: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; font-weight: bold; color: #aaa; box-sizing: border-box; }
+
+.col-num { width: 40px; } 
+.col-type { width: 80px; line-height: 1.1; } 
+.col-tag { width: 100px; } 
+.col-set { width: 40px; cursor: pointer; font-size: 13px; transition: background 0.1s; } 
+.col-set:hover { background-color: #444; }
+.col-in { width: 75px; } 
+.col-ref { width: 80px; } 
+.col-out { width: 75px; border-right: none !important; }
+
+.ruler { position: relative; height: 30px; } .tick { position: absolute; top: 0; height: 100%; } .tick-label { position: absolute; top: 5px; left: 2px; font-size: 10px; color: #aaa; } .tick-mark { position: absolute; bottom: 0; left: 0; border-left: 1px solid #666; }
+#tracks-container { width: max-content; min-width: 100%; }
+.track { display: flex; border-bottom: 1px solid #333; height: 50px; width: max-content; min-width: 100%; transition: box-shadow 0.1s; }
+.track.dragging { opacity: 0.4; } .track.drag-over-top { box-shadow: inset 0 3px 0 #007acc; } .track.drag-over-bottom { box-shadow: inset 0 -3px 0 #007acc; }
+.drag-handle { cursor: grab; color: #888; font-weight: bold; margin-right: 5px; font-size: 16px; user-select: none; } .drag-handle:active { cursor: grabbing; }
+
+.track-header { width: 490px; min-width: 490px; background-color: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; box-sizing: border-box; position: sticky; left: 0; z-index: 20; }
+.track-header > div { padding: 0 5px; border-right: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; box-sizing: border-box; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.track-header .col-tag { cursor: text; } 
+.track-header .col-tag:hover { background-color: #3a3a3a; } 
+.track-header .col-tag:focus { background-color: #1a1a1a; outline: none; box-shadow: inset 0 0 0 1px #007acc; }
+
+.track-content { position: relative; background-color: var(--track-bg); }
+.track-header.dummy-track { background-color: #3a1818; border-right-color: #552222; }
+.track-content.dummy-track { background-color: #2b1111; }
+.clip-wait { position: absolute; height: 2px; background-color: #888; top: 24px; }
+.clip-action { position: absolute; height: 24px; top: 13px; border-radius: 3px; display: flex; align-items: center; font-size: 12px; color: rgba(255,255,255,0.8); box-shadow: 0 2px 5px rgba(0,0,0,0.3); cursor: move; user-select: none; }
+.clip-action:hover { filter: brightness(1.2); } .clip-text { padding-left: 5px; pointer-events: none; }
+.handle { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 10; } .handle-left { left: 0; } .handle-right { right: 0; }
+.clip-monitor { position: absolute; height: 0; border-bottom: 2px dashed; top: 24px; opacity: 0.7; }
+.clip-action-sensor { position: absolute; height: 24px; top: 13px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); background-image: repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 6px, transparent 6px, transparent 12px); cursor: move; user-select: none; }
+.clip-action-sensor:hover { filter: brightness(1.2); }
+
+.color-gray { background-color: #888; } .color-red { background-color: #d32f2f; } .color-blue { background-color: #1976d2; } .color-green { background-color: #388e3c; } .color-yellow { background-color: #fbc02d; color: #333; } .color-orange { background-color: #e67e22; } .color-purple { background-color: #c778dd; } .color-pink { background-color: #e91e63; }
+svg polyline { stroke-linecap: round; stroke-linejoin: round; }
+.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 1000; justify-content: center; align-items: center; }
+.modal-overlay.active { display: flex; }
+.modal-content { background: var(--panel-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+.modal-content h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;}
+.form-group { margin-bottom: 15px; } .form-group label { margin-right: 10px; cursor: pointer;}
+.checkbox-group { background: #222; padding: 10px; border-radius: 4px; border: 1px solid #444; } .checkbox-group label { display: block; margin-bottom: 8px; } .checkbox-group label:last-child { margin-bottom: 0; }
+.input-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; } .input-row { display: flex; gap: 5px; } .input-row input { flex-grow: 1; padding: 4px; background: #1a1a1a; color: white; border: 1px solid #555; border-radius: 3px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;}
