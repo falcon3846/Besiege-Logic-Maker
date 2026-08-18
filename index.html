@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Besiege Logic Timeline</title>
+    <title>Logic Maker</title>
     <style>
         /* レイアウトが絶対に崩れない完全版CSS */
         body { font-family: "Meiryo", "Segoe UI", sans-serif; background: #1e1e1e; color: #eee; margin: 0; padding: 0; }
@@ -21,7 +21,6 @@
         .track { display: flex; border-bottom: 1px solid #333; height: 45px; background: #1e1e1e; align-items: center; font-size: 13px; width: max-content; min-width: 100%; }
         
         /* 左側の列（横スクロールしても固定追従させる） */
-        /* 【修正】z-indexを10に上げ、背後のつまみが透けないようにしました */
         .track-header { display: flex; width: 640px; flex-shrink: 0; background: #252526; height: 100%; align-items: center; position: sticky; left: 0; z-index: 10; border-right: 1px solid #444; box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
         #timeline-header .track-header { background: #2d2d30; z-index: 20; }
         

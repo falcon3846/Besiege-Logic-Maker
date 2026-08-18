@@ -9,28 +9,29 @@ function generateUUID() {
     });
 }
 
+// ご要望に合わせた初期設定
 let tracksData = [
-    { id: 1, guid: generateUUID(), type: 'input', name: 'EXTERNAL_IN', color: 'color-orange', activateType: 'key', activateValues: [], emulateType: 'key', emulateValues: ['B'], 
-      inputType: 'finite', clips: [{ start: 0, duration: 2.0 }], events: [] },
+    { id: 1, guid: generateUUID(), type: 'input', name: 'Input', color: 'color-orange', activateType: 'key', activateValues: [], emulateType: 'key', emulateValues: ['UpArrow'], 
+      inputType: 'finite', clips: [{ start: 0, duration: 5.0 }], events: [] },
 
-    { id: 2, guid: generateUUID(), type: 'wheel', name: 'LARGE_WHEEL', color: 'color-purple', 
-      activateType: 'key', activateValues: ['B'], emulateType: 'key', emulateValues: [], 
-      period: 2.0, isToggle: true, angleData: [] },
+    { id: 2, guid: generateUUID(), type: 'wheel', name: 'MainLoop', color: 'color-purple', 
+      activateType: 'key', activateValues: ['UpArrow'], emulateType: 'key', emulateValues: [], 
+      period: 2.0, isToggle: false, angleData: [] },
 
-    { id: 3, guid: generateUUID(), type: 'length_detector', name: 'SENSOR', color: 'color-green', 
-      activateType: 'key', activateValues: ['B'], emulateType: 'var', emulateValues: ['1'], 
+    { id: 3, guid: generateUUID(), type: 'length_detector', name: 'Up', color: 'color-green', 
+      activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['up'], 
       targetTrackId: 2, minAngle: 0, maxAngle: 45, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
 
-    { id: 4, guid: generateUUID(), type: 'length_detector', name: 'SENSOR_copy', color: 'color-green', 
-      activateType: 'key', activateValues: ['B'], emulateType: 'var', emulateValues: ['2'], 
+    { id: 4, guid: generateUUID(), type: 'length_detector', name: 'Go', color: 'color-green', 
+      activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['go'], 
       targetTrackId: 2, minAngle: 45, maxAngle: 90, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
 
-    { id: 5, guid: generateUUID(), type: 'length_detector', name: 'ENSOR_copy_copy', color: 'color-green', 
-      activateType: 'key', activateValues: ['B'], emulateType: 'var', emulateValues: ['3'], 
+    { id: 5, guid: generateUUID(), type: 'length_detector', name: 'Down', color: 'color-green', 
+      activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['down'], 
       targetTrackId: 2, minAngle: 180, maxAngle: 225, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] },
 
-    { id: 6, guid: generateUUID(), type: 'length_detector', name: 'SOR_copy_copy_copy', color: 'color-green', 
-      activateType: 'key', activateValues: ['B'], emulateType: 'var', emulateValues: ['4'], 
+    { id: 6, guid: generateUUID(), type: 'length_detector', name: 'Back', color: 'color-green', 
+      activateType: 'key', activateValues: ['UpArrow'], emulateType: 'var', emulateValues: ['back'], 
       targetTrackId: 2, minAngle: 225, maxAngle: 270, holdToActivate: true, isToggle: false, monitorPeriods: [], activePeriods: [] }
 ];
 
@@ -126,7 +127,6 @@ function simulate() {
                 } else { track._forwardActive = fwOn; track._backwardActive = bwOn; }
 
                 let delta = 0; let p = track.period > 0 ? track.period : 2.0; let spd = 360 / p;
-                
                 if (tMs > 0) { 
                     if (track._forwardActive) delta += spd * (dtMs / 1000);
                     if (track._backwardActive) delta -= spd * (dtMs / 1000);
@@ -409,7 +409,6 @@ function renderTracks() {
                     const actionEl = document.createElement('div'); actionEl.className = `clip-action-sensor ${track.color}`;
                     actionEl.style.left = `${p.start * PPS}px`; actionEl.style.width = `${(p.end - p.start) * PPS}px`;
                     
-                    // 【修正3】ダミー（無効）状態のときの表示もCSSの柄に対応させるため、背景色とボーダーをJSで上書き
                     if (p.isDummy) { 
                         actionEl.style.opacity = '0.5'; 
                         actionEl.style.background = 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px), #d32f2f';
@@ -430,7 +429,6 @@ function renderTracks() {
                     txtDiv.style.display = 'flex'; txtDiv.style.justifyContent = 'space-between'; txtDiv.style.width = '100%'; 
                     txtDiv.style.padding = '0 5px'; txtDiv.style.boxSizing = 'border-box'; txtDiv.style.pointerEvents = 'none'; 
                     txtDiv.style.fontSize = '10px'; txtDiv.style.color = '#fff'; txtDiv.style.lineHeight = '24px';
-                    // 【修正4】文字が背景に負けないようにドロップシャドウを追加
                     txtDiv.style.textShadow = '1px 1px 2px rgba(0,0,0,0.8)';
                     txtDiv.innerHTML = `<span>${dispLeft}°</span><span>${dispRight}°</span>`;
                     actionEl.appendChild(txtDiv);
@@ -936,8 +934,18 @@ function exportData() {
     const blob = new Blob([xml], {type: 'application/xml'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'logic_timeline.bsg';
+
+    a.href = url; // 必須！
+
+    const now = new Date();
+    const YY = String(now.getFullYear()).slice(-2);
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const DD = String(now.getDate()).padStart(2, '0');
+    const HH = String(now.getHours()).padStart(2, '0');
+    const MIN = String(now.getMinutes()).padStart(2, '0');
+    
+    a.download = `logic_${YY}${MM}${DD}${HH}${MIN}.bsg`;
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
