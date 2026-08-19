@@ -3,67 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Logic Maker</title>
-    <style>
-        body { font-family: "Meiryo", "Segoe UI", sans-serif; background: #1e1e1e; color: #eee; margin: 0; padding: 0; }
-        #toolbar { display: flex; gap: 20px; padding: 10px 20px; background: #252526; border-bottom: 1px solid #333; align-items: center; flex-wrap: wrap; }
-        .toolbar-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-        input[type="number"], input[type="text"], select { background: #333; color: #fff; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; }
-        button { cursor: pointer; padding: 6px 12px; border: none; border-radius: 4px; font-weight: bold; color: #fff; transition: background 0.2s; }
-        .primary-btn { background: #007acc; } .primary-btn:hover { background: #005f9e; }
-        .secondary-btn { background: #555; } .danger-btn { background: #d32f2f; }
-
-        #timeline-container { display: flex; flex-direction: column; overflow: auto; height: calc(100vh - 55px); }
-        
-        #timeline-header { display: flex; background: #2d2d30; position: sticky; top: 0; z-index: 15; height: 35px; align-items: center; border-bottom: 1px solid #444; font-size: 13px; font-weight: bold; width: max-content; min-width: 100%; }
-        .track { display: flex; border-bottom: 1px solid #333; height: 45px; background: #1e1e1e; align-items: center; font-size: 13px; width: max-content; min-width: 100%; }
-        
-        .track-header { display: flex; width: 640px; flex-shrink: 0; background: #252526; height: 100%; align-items: center; position: sticky; left: 0; z-index: 10; border-right: 1px solid #444; box-shadow: 2px 0 5px rgba(0,0,0,0.3); }
-        #timeline-header .track-header { background: #2d2d30; z-index: 20; }
-        
-        .col-num { width: 50px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
-        .col-type { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
-        .col-tag { width: 140px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
-        .col-set { width: 50px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; cursor: pointer; }
-        .col-in { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
-        .col-ref { width: 100px; text-align: center; border-right: 1px solid #444; flex-shrink: 0; }
-        .col-out { width: 100px; text-align: center; flex-shrink: 0; }
-        
-        .col-timeline-header { position: relative; flex-grow: 1; height: 100%; min-width: 800px; }
-        .track-content { position: relative; flex-grow: 1; height: 100%; background: #1e1e1e; min-width: 800px; }
-        
-        #ruler { position: relative; height: 100%; }
-        .tick { position: absolute; bottom: 0; border-left: 1px solid #555; height: 100%; pointer-events: none; }
-        .tick-label { position: absolute; top: 4px; left: 4px; font-size: 11px; color: #999; }
-        
-        .clip-wait { position: absolute; height: 4px; top: calc(50% - 2px); background: #777; border-radius: 2px; }
-        
-        .clip-action { position: absolute; height: 60%; top: 20%; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #fff; overflow: hidden; text-shadow: 1px 1px 1px rgba(0,0,0,0.5); font-size: 12px; }
-        .clip-monitor { position: absolute; height: 10%; top: 45%; border-bottom: 2px dashed #fbc02d; background: transparent; pointer-events: none; }
-        
-        .clip-action-sensor { position: absolute; height: 60%; top: 20%; border-radius: 4px; display: flex; align-items: center; overflow: hidden; }
-        .clip-action-sensor.color-yellow { background: repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px), #d4a017; border: 1px solid #b28913; }
-        .clip-action-sensor.color-green { background: repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px), #388e3c; border: 1px solid #1b5e20; }
-        
-        .color-orange { background: #e67e22; border: 1px solid #d35400; }
-        .color-blue { background: #1976d2; border: 1px solid #0d47a1; }
-        .color-pink { color: #e91e63; }
-        .color-purple { color: #c778dd; }
-        .color-yellow { color: #fbc02d; }
-        .color-green { color: #388e3c; }
-        
-        .handle { position: absolute; width: 8px; height: 100%; cursor: ew-resize; z-index: 5; background: rgba(255,255,255,0.1); }
-        .handle-left { left: 0; } .handle-right { right: 0; }
-        .drag-handle { cursor: grab; padding-right: 8px; color: #888; font-size: 16px; }
-        .dummy-track { opacity: 0.5; }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-        .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-content { background: #252526; padding: 25px; border-radius: 8px; min-width: 380px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .modal-field { margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
-        .modal-field label { cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 14px; }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #444; padding-top: 15px; }
-        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
-    </style>
+    <!-- 分離したCSSファイルを読み込む -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -84,11 +25,25 @@
                 <option value="1.0">1.0s</option>
             </select>
         </div>
-        <div class="toolbar-group">
-            <button class="primary-btn" onclick="exportData()" style="padding: 8px 16px;">BSGファイルをエクスポート</button>
+        
+        <!-- 履歴管理ボタン (左側に配置) -->
+        <div class="toolbar-group" style="margin-left: 10px; border-left: 1px solid #555; padding-left: 15px;">
+            <button class="secondary-btn" id="btn-undo" onclick="undo()" disabled>↶ 元に戻す</button>
+            <button class="secondary-btn" id="btn-redo" onclick="redo()" disabled>↷ やり直す</button>
         </div>
-        <div class="toolbar-group" style="margin-left: 20px;">
-            <label>トラック追加:</label>
+
+        <!-- JSON保存・読込ボタン (右側に配置) -->
+        <div class="toolbar-group" style="margin-left: 10px; border-left: 1px solid #555; padding-left: 15px;">
+            <button class="secondary-btn" onclick="saveProject()">保存 (JSON)</button>
+            <button class="secondary-btn" onclick="document.getElementById('load-project-input').click()">読込 (JSON)</button>
+            <input type="file" id="load-project-input" style="display:none;" accept=".json" onchange="loadProject(event)">
+        </div>
+
+        <div class="toolbar-group" style="margin-left: auto;">
+            <button class="primary-btn" onclick="exportData()" style="padding: 8px 16px;">BSGエクスポート</button>
+        </div>
+        <div class="toolbar-group" style="margin-left: 10px;">
+            <label>追加:</label>
             <button class="primary-btn" onclick="addTrack('timer')">+ Timer</button>
             <button class="primary-btn" onclick="addTrack('input')">+ Input</button>
             <button class="primary-btn" onclick="addTrack('wheel')">+ Wheel</button>
@@ -185,7 +140,6 @@
                 </div>
                 <div id="io-list"></div>
                 <button class="secondary-btn" id="add-io-btn" onclick="addIOField()">+ 入力値を追加 (最大5つ)</button>
-                <!-- 【修正】注意書きを削除しました -->
             </div>
 
             <div class="modal-actions">

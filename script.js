@@ -2,6 +2,11 @@ let PPS = 100;
 let MAX_SECONDS = 10;
 let TICK_STEP = 0.5;
 
+// 【履歴管理用】
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 10;
+
 function generateUUID() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
         let r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -44,6 +49,50 @@ const colorsMap = {
     'color-gray': '#888', 'color-red': '#d32f2f', 'color-blue': '#1976d2',
     'color-green': '#388e3c', 'color-yellow': '#fbc02d', 'color-orange': '#e67e22', 'color-purple': '#c778dd', 'color-pink': '#e91e63'
 };
+
+// 【新規】現在の状態を保存
+function saveState() {
+    undoStack.push(JSON.stringify(tracksData));
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack = []; 
+    updateUndoRedoUI();
+}
+
+function undo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.stringify(tracksData));
+    tracksData = JSON.parse(undoStack.pop());
+    simulate(); renderTracks(); updateUndoRedoUI();
+}
+
+function redo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.stringify(tracksData));
+    tracksData = JSON.parse(redoStack.pop());
+    simulate(); renderTracks(); updateUndoRedoUI();
+}
+
+function updateUndoRedoUI() {
+    document.getElementById('btn-undo').disabled = undoStack.length === 0;
+    document.getElementById('btn-redo').disabled = redoStack.length === 0;
+}
+
+// 【新規】キーボードショートカット
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return; 
+    }
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const modifier = isMac ? e.metaKey : e.ctrlKey;
+    if (modifier && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+    } else if (modifier && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+    }
+});
 
 function updateSettings() {
     const newMax = Number(document.getElementById('max-time-input').value);
@@ -257,6 +306,7 @@ function renderTracks() {
         trackEl.addEventListener('drop', (e) => {
             e.preventDefault(); trackEl.classList.remove('drag-over-top', 'drag-over-bottom');
             if (draggedTrackId === null || draggedTrackId === track.id) return;
+            saveState();
             const rect = trackEl.getBoundingClientRect(); const midY = rect.top + rect.height / 2; const insertAfter = e.clientY >= midY;
             const draggedIndex = tracksData.findIndex(t => t.id === draggedTrackId); const [draggedItem] = tracksData.splice(draggedIndex, 1);
             const newTargetIndex = tracksData.findIndex(t => t.id === track.id); tracksData.splice(insertAfter ? newTargetIndex + 1 : newTargetIndex, 0, draggedItem);
@@ -290,6 +340,7 @@ function renderTracks() {
         if (track.type === 'wheel' || track.type === 'large_wheel') { 
             typeEl.style.cursor = 'pointer'; typeEl.style.color = track.color === 'color-pink' ? '#e91e63' : '#c778dd'; 
             typeEl.addEventListener('click', () => { 
+                saveState();
                 track.type = track.type === 'wheel' ? 'large_wheel' : 'wheel'; 
                 track.color = track.type === 'wheel' ? 'color-purple' : 'color-pink';
                 renderTracks(); 
@@ -298,8 +349,20 @@ function renderTracks() {
         if (track.type === 'angle' || track.type === 'length_detector') { 
             typeEl.style.cursor = 'pointer'; typeEl.style.color = track.color === 'color-green' ? '#388e3c' : '#fbc02d'; 
             typeEl.addEventListener('click', () => { 
-                track.type = track.type === 'angle' ? 'length_detector' : 'angle'; 
-                track.color = track.type === 'angle' ? 'color-yellow' : 'color-green';
+                saveState();
+                if (track.type === 'angle') {
+                    track.type = 'length_detector';
+                    track.color = 'color-green';
+                } else {
+                    if (track.targetTrackId !== null) {
+                        let count = tracksData.filter(t => t.type === 'angle' && t.targetTrackId === track.targetTrackId).length;
+                        if (count >= 4) {
+                            track.targetTrackId = null;
+                        }
+                    }
+                    track.type = 'angle';
+                    track.color = 'color-yellow';
+                }
                 renderTracks(); 
             }); 
         }
@@ -307,7 +370,13 @@ function renderTracks() {
         const tagEl = document.createElement('div'); tagEl.className = 'col-tag'; tagEl.innerText = track.name;
         tagEl.contentEditable = true; tagEl.spellcheck = false;
         tagEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); tagEl.blur(); } });
-        tagEl.addEventListener('blur', () => { const newName = tagEl.innerText.trim(); if (newName) track.name = newName; else tagEl.innerText = track.name; });
+        tagEl.addEventListener('blur', () => { 
+            const newName = tagEl.innerText.trim(); 
+            if (newName !== track.name) {
+                saveState();
+                if (newName) track.name = newName; else tagEl.innerText = track.name; 
+            }
+        });
 
         const setEl = document.createElement('div'); setEl.className = 'col-set'; setEl.innerHTML = '⚙️';
         setEl.title = "詳細設定を開く";
@@ -320,7 +389,12 @@ function renderTracks() {
         if (track.type === 'input') {
             if (track.inputType === 'finite') {
                 inEl.innerText = '+ Clip'; inEl.style.cursor = 'pointer'; inEl.style.color = '#e67e22';
-                inEl.addEventListener('click', () => { const lastClip = track.clips.length > 0 ? track.clips[track.clips.length - 1] : null; track.clips.push({ start: lastClip ? lastClip.start + lastClip.duration + 0.5 : 0, duration: 1.0 }); simulate(); renderTracks(); });
+                inEl.addEventListener('click', () => { 
+                    saveState();
+                    const lastClip = track.clips.length > 0 ? track.clips[track.clips.length - 1] : null; 
+                    track.clips.push({ start: lastClip ? lastClip.start + lastClip.duration + 0.5 : 0, duration: 1.0 }); 
+                    simulate(); renderTracks(); 
+                });
             } else { inEl.innerText = '-'; }
             refEl.innerText = '-';
             outEl.innerText = formatIO(track.emulateType, track.emulateValues);
@@ -458,7 +532,12 @@ function renderTracks() {
                         const handleLeft = document.createElement('div'); handleLeft.className = 'handle handle-left'; handleLeft.addEventListener('mousedown', (e) => startDrag(e, track.id, 'resize-left', index)); actionEl.appendChild(handleLeft);
                         const handleRight = document.createElement('div'); handleRight.className = 'handle handle-right'; handleRight.addEventListener('mousedown', (e) => startDrag(e, track.id, 'resize-right', index)); actionEl.appendChild(handleRight);
                         actionEl.addEventListener('mousedown', (e) => { if (e.target.classList.contains('handle')) return; startDrag(e, track.id, 'move', index); });
-                        actionEl.addEventListener('dblclick', (e) => { if (track.type === 'input') { track.clips.splice(index, 1); simulate(); renderTracks(); } });
+                        actionEl.addEventListener('dblclick', (e) => { 
+                            if (track.type === 'input') { 
+                                saveState();
+                                track.clips.splice(index, 1); simulate(); renderTracks(); 
+                            } 
+                        });
                     } else { const textEl = document.createElement('span'); textEl.className = 'clip-text'; textEl.innerText = 'ON'; actionEl.appendChild(textEl); }
                     contentEl.appendChild(actionEl);
                 }
@@ -470,6 +549,10 @@ function renderTracks() {
 
 function startDrag(e, trackId, mode, clipIndex = null, evStart = 0, evEnd = 0) {
     e.preventDefault(); const track = tracksData.find(t => t.id === trackId); if (!track) return;
+    
+    // ドラッグ開始時に状態を保存（Undo用）
+    saveState();
+
     let sWait = 0; let sDur = 0;
     if (track.type === 'timer') { sWait = track.baseWait; sDur = track.baseDuration; } 
     else if (track.type === 'input') { sWait = track.clips[clipIndex].start; sDur = track.clips[clipIndex].duration; }
@@ -523,16 +606,6 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', () => { if (!dragState.isDragging) return; dragState.isDragging = false; document.body.style.cursor = ''; });
 
-document.getElementById('prop-hold').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-stop').checked = false; });
-document.getElementById('prop-stop').addEventListener('change', (e) => { if (e.target.checked) document.getElementById('prop-hold').checked = false; });
-
-document.getElementById('prop-angle-hold').addEventListener('change', (e) => { 
-    if (e.target.checked) document.getElementById('prop-angle-toggle').checked = true; 
-});
-document.getElementById('prop-angle-toggle').addEventListener('change', (e) => { 
-    if (!e.target.checked) document.getElementById('prop-angle-hold').checked = false; 
-});
-
 function openModal(trackId, target) {
     editingTrackId = trackId; editingTarget = target;
     const track = tracksData.find(t => t.id === trackId); if (!track) return;
@@ -573,8 +646,23 @@ function openModal(trackId, target) {
             const selectEl = document.getElementById('prop-target-track'); selectEl.innerHTML = '<option value="">(未選択)</option>';
             tracksData.forEach((t, idx) => { 
                 if ((track.type === 'angle' && t.type === 'large_wheel') || (track.type === 'length_detector' && t.type === 'wheel')) { 
-                    const opt = document.createElement('option'); opt.value = t.id; opt.innerText = `No.${idx + 1} - ${t.name}`; 
-                    if (t.id == track.targetTrackId) opt.selected = true; 
+                    let isLimit = false;
+                    if (track.type === 'angle') {
+                        let count = tracksData.filter(other => other.type === 'angle' && other.targetTrackId === t.id && other.id !== track.id).length;
+                        isLimit = count >= 4;
+                    }
+                    const opt = document.createElement('option'); 
+                    opt.value = t.id; 
+                    opt.innerText = `No.${idx + 1} - ${t.name}${isLimit ? ' (上限)' : ''}`; 
+                    if (isLimit) {
+                        opt.disabled = true;
+                        opt.setAttribute('disabled', 'disabled');
+                    }
+                    if (t.id == track.targetTrackId) { 
+                        opt.selected = true; 
+                        opt.disabled = false;
+                        opt.removeAttribute('disabled');
+                    }
                     selectEl.appendChild(opt); 
                 } 
             });
@@ -621,6 +709,7 @@ function removeIOField(index) { tempValues.splice(index, 1); if (tempValues.leng
 function saveModal() {
     const track = tracksData.find(t => t.id === editingTrackId);
     if (track) {
+        saveState();
         if (editingTarget === 'property') {
             if (track.type === 'timer') { 
                 track.baseWait = Number(document.getElementById('prop-wait').value) || 0;
@@ -632,9 +721,20 @@ function saveModal() {
             else if (track.type === 'input') { const checkedInputType = document.querySelector('input[name="input-type"]:checked'); track.inputType = checkedInputType ? checkedInputType.value : 'finite'; } 
             else if (track.type === 'wheel' || track.type === 'large_wheel') { track.isToggle = document.getElementById('prop-toggle').checked; track.period = Number(document.getElementById('prop-period').value) || 2.0; } 
             else if (track.type === 'angle' || track.type === 'length_detector') {
-                track.targetTrackId = Number(document.getElementById('prop-target-track').value) || null;
-                track.minAngle = Number(document.getElementById('prop-angle-min').value) || 0; track.maxAngle = Number(document.getElementById('prop-angle-max').value) || 0;
-                track.holdToActivate = document.getElementById('prop-angle-hold').checked; track.isToggle = document.getElementById('prop-angle-toggle').checked;
+                let newTargetId = Number(document.getElementById('prop-target-track').value) || null;
+                
+                if (track.type === 'angle' && newTargetId) {
+                    let currentCount = tracksData.filter(t => t.type === 'angle' && t.targetTrackId === newTargetId && t.id !== track.id).length;
+                    if (currentCount >= 4) {
+                        newTargetId = null;
+                    }
+                }
+                
+                track.targetTrackId = newTargetId;
+                track.minAngle = Number(document.getElementById('prop-angle-min').value) || 0; 
+                track.maxAngle = Number(document.getElementById('prop-angle-max').value) || 0;
+                track.holdToActivate = document.getElementById('prop-angle-hold').checked; 
+                track.isToggle = document.getElementById('prop-angle-toggle').checked;
             }
         } else {
             const checkedRadio = document.querySelector('input[name="io-type"]:checked'); const newType = checkedRadio ? checkedRadio.value : 'key';
@@ -646,6 +746,7 @@ function saveModal() {
 }
 
 function addTrack(type) {
+    saveState();
     const newId = tracksData.length > 0 ? Math.max(...tracksData.map(t => t.id)) + 1 : 1;
     if (type === 'timer') { tracksData.push({ id: newId, guid: generateUUID(), type: 'timer', name: 'NEW_TIMER', color: 'color-blue', activateType: 'key', activateValues: ['B'], emulateType: 'key', emulateValues: ['C'], baseWait: 1.0, baseDuration: 1.0, holdToActivate: false, canStop: false, loop: false, events: [] }); } 
     else if (type === 'input') { tracksData.push({ id: newId, guid: generateUUID(), type: 'input', name: 'NEW_INPUT', color: 'color-orange', activateType: null, activateValues: [], emulateType: 'key', emulateValues: ['NewKey'], inputType: 'finite', clips: [{ start: 0, duration: 1.0 }], events: [] }); } 
@@ -655,11 +756,13 @@ function addTrack(type) {
 }
 
 function deleteTrack() { 
+    saveState();
     tracksData = tracksData.filter(t => t.id !== editingTrackId); 
     closeModal(); simulate(); renderTracks(); 
 }
 
 function duplicateTrack() {
+    saveState();
     const trackIndex = tracksData.findIndex(t => t.id === editingTrackId);
     if (trackIndex === -1) return;
     const track = tracksData[trackIndex];
@@ -669,12 +772,63 @@ function duplicateTrack() {
     newTrack.id = newId;
     newTrack.guid = generateUUID(); 
     newTrack.name = newTrack.name + '_copy';
+
+    if (newTrack.type === 'angle' && newTrack.targetTrackId !== null) {
+        let count = tracksData.filter(t => t.type === 'angle' && t.targetTrackId === newTrack.targetTrackId).length;
+        if (count >= 4) {
+            newTrack.targetTrackId = null;
+        }
+    }
     
     tracksData.splice(trackIndex + 1, 0, newTrack);
     closeModal(); simulate(); renderTracks();
 }
 
-// 自動変換機能：UI上で入力された文字を、エクスポート時にBesiege（Unity）のキーコードに変換する
+function saveProject() {
+    const dataStr = JSON.stringify(tracksData, null, 2);
+    const blob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    
+    const now = new Date();
+    const YY = String(now.getFullYear()).slice(-2);
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const DD = String(now.getDate()).padStart(2, '0');
+    const HH = String(now.getHours()).padStart(2, '0');
+    const MIN = String(now.getMinutes()).padStart(2, '0');
+    
+    a.download = `timeline_${YY}${MM}${DD}${HH}${MIN}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function loadProject(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const loadedData = JSON.parse(e.target.result);
+            if (Array.isArray(loadedData)) {
+                saveState();
+                tracksData = loadedData;
+                simulate();
+                renderRuler();
+                renderTracks();
+            } else {
+                alert("無効なファイル形式です。");
+            }
+        } catch (err) {
+            alert("ファイルの読み込みに失敗しました。");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; 
+}
+
 const toUnityKey = (key) => {
     const map = {
         '0': 'Alpha0', '1': 'Alpha1', '2': 'Alpha2', '3': 'Alpha3', '4': 'Alpha4',
@@ -685,7 +839,6 @@ const toUnityKey = (key) => {
     };
     const lower = key.toLowerCase();
     if (map[lower]) return map[lower];
-    // 単一のアルファベット(a-z)なら大文字に変換
     if (key.length === 1 && key.match(/[a-z]/i)) return key.toUpperCase();
     return key;
 };
@@ -724,7 +877,6 @@ function exportData() {
     tracksData.forEach(track => {
         if (track.type === 'angle' || track.type === 'length_detector') {
             if (track.targetTrackId && wheelCoords[track.targetTrackId]) {
-                if (!wheelSensorCount[track.targetTrackId]) wheelSensorCount[track.targetTrackId] = [];
                 
                 let a1 = track.minAngle;
                 let a2 = track.maxAngle;
@@ -742,22 +894,22 @@ function exportData() {
                 let radMid = midAngle * Math.PI / 180;
                 let halfDiffRad = (diff / 2) * Math.PI / 180;
 
-                let targetAngles = [0, 90, 180, 270];
-                let bestIdx = -1;
-                let minDiff = 999;
-                
-                for (let i = 0; i < 4; i++) {
-                    if (wheelSensorCount[track.targetTrackId].includes(i)) continue;
-                    let d = Math.abs(midAngle - targetAngles[i]);
-                    if (d > 180) d = 360 - d;
-                    if (d < minDiff) { minDiff = d; bestIdx = i; }
-                }
-
-                if (bestIdx !== -1) {
-                    wheelSensorCount[track.targetTrackId].push(bestIdx);
-                    let wPos = wheelCoords[track.targetTrackId];
+                if (track.type === 'angle') {
+                    if (!wheelSensorCount[track.targetTrackId]) wheelSensorCount[track.targetTrackId] = [];
+                    let targetAngles = [0, 90, 180, 270];
+                    let bestIdx = -1;
+                    let minDiff = 999;
                     
-                    if (track.type === 'angle') {
+                    for (let i = 0; i < 4; i++) {
+                        if (wheelSensorCount[track.targetTrackId].includes(i)) continue;
+                        let d = Math.abs(midAngle - targetAngles[i]);
+                        if (d > 180) d = 360 - d;
+                        if (d < minDiff) { minDiff = d; bestIdx = i; }
+                    }
+
+                    if (bestIdx !== -1) {
+                        wheelSensorCount[track.targetTrackId].push(bestIdx);
+                        let wPos = wheelCoords[track.targetTrackId];
                         let angOffsets = [
                             { dx: 0, dy: 1, dz: 1.0 },
                             { dx: -1, dy: 0, dz: 1.0 },
@@ -766,25 +918,26 @@ function exportData() {
                         ];
                         coords[track.id] = { x: wPos.x + angOffsets[bestIdx].dx, y: wPos.y + angOffsets[bestIdx].dy, z: wPos.z + angOffsets[bestIdx].dz };
                     } else {
-                        let dx = 0.5 * Math.sin(radMid);
-                        let dy = 0.5 * Math.cos(radMid);
-                        
-                        coords[track.id] = { x: wPos.x + dx, y: wPos.y + dy, z: wPos.z + 0.4 };
-
-                        track._ldLocalEnd = {
-                            x: -dx,
-                            y: -1.0 - dy,
-                            z: -0.9
-                        };
-
-                        let boundDx = 0.5 * Math.sin(halfDiffRad);
-                        let boundDy = 0.5 * Math.cos(halfDiffRad);
-                        let exactLength = Math.sqrt(Math.pow(-boundDx, 2) + Math.pow(-1.0 - boundDy, 2) + Math.pow(-0.9, 2));
-                        track._ldThreshold = Math.round(exactLength * 1000) / 1000;
+                        coords[track.id] = { x: xPosTimer, y: 0, z: 0.5 };
+                        xPosTimer += 1;
                     }
                 } else {
-                    coords[track.id] = { x: xPosTimer, y: 0, z: 0.5 };
-                    xPosTimer += 1;
+                    let wPos = wheelCoords[track.targetTrackId];
+                    let dx = 0.5 * Math.sin(radMid);
+                    let dy = 0.5 * Math.cos(radMid);
+                    
+                    coords[track.id] = { x: wPos.x + dx, y: wPos.y + dy, z: wPos.z + 0.4 };
+
+                    track._ldLocalEnd = {
+                        x: -dx,
+                        y: -1.0 - dy,
+                        z: -0.9
+                    };
+
+                    let boundDx = 0.5 * Math.sin(halfDiffRad);
+                    let boundDy = 0.5 * Math.cos(halfDiffRad);
+                    let exactLength = Math.sqrt(Math.pow(-boundDx, 2) + Math.pow(-1.0 - boundDy, 2) + Math.pow(-0.9, 2));
+                    track._ldThreshold = Math.round(exactLength * 1000) / 1000;
                 }
             } else {
                 coords[track.id] = { x: xPosTimer, y: 0, z: 0.5 };
@@ -862,7 +1015,6 @@ function exportData() {
                 xml += `          <String>Use=True</String>\n`;
             } else {
                 vals.forEach(v => {
-                    // 入力キーをUnityのKeyCodeに変換してエクスポート
                     xml += `          <String>${toUnityKey(v)}</String>\n`;
                 });
             }
